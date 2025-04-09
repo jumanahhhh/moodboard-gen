@@ -1,0 +1,28 @@
+[debug] [2025-04-09T05:03:28.716Z] ----------------------------------------------------------------------
+[debug] [2025-04-09T05:03:28.717Z] Command:       /opt/homebrew/Cellar/node/23.10.0_1/bin/node /opt/homebrew/bin/firebase use --add
+[debug] [2025-04-09T05:03:28.717Z] CLI Version:   14.1.0
+[debug] [2025-04-09T05:03:28.718Z] Platform:      darwin
+[debug] [2025-04-09T05:03:28.718Z] Node Version:  v23.10.0
+[debug] [2025-04-09T05:03:28.718Z] Time:          Wed Apr 09 2025 10:33:28 GMT+0530 (India Standard Time)
+[debug] [2025-04-09T05:03:28.718Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-04-09T05:03:28.806Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-04-09T05:03:28.806Z] > authorizing via signed-in user (jumanahmaheen28@gmail.com)
+[debug] [2025-04-09T05:03:28.807Z] Checked if tokens are valid: true, expires at: 1744178320238
+[debug] [2025-04-09T05:03:28.807Z] Checked if tokens are valid: true, expires at: 1744178320238
+[debug] [2025-04-09T05:03:28.807Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2025-04-09T05:03:29.639Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2025-04-09T05:03:29.639Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2025-04-09T05:03:41.930Z] TypeError: Cannot read properties of undefined (reading 'value')
+    at ListPrompt.getCurrentValue (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/inquirer/lib/prompts/list.js:145:53)
+    at /opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/operators/map.js:10:37
+    at OperatorSubscriber._this._next (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/operators/OperatorSubscriber.js:33:21)
+    at Subscriber.next (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/Subscriber.js:51:18)
+    at /opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/operators/take.js:15:32
+    at OperatorSubscriber._this._next (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/operators/OperatorSubscriber.js:33:21)
+    at Subscriber.next (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/Subscriber.js:51:18)
+    at Interface.handler (/opt/homebrew/lib/node_modules/firebase-tools/node_modules/rxjs/dist/cjs/internal/observable/fromEvent.js:59:31)
+    at Interface.emit (node:events:519:35)
+    at Interface.emit (node:domain:489:12)
+[error] 
+[error] Error: An unexpected error has occurred.

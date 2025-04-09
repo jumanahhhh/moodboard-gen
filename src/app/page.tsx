@@ -1,103 +1,152 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import Chatbot from './components/Chatbot';
+import Moodboard from './components/Moodboard';
+import { motion, AnimatePresence } from 'framer-motion';
+import { generateImages, regenerateImages } from './utils/imageGenerator';
+import { useAuth } from './context/AuthContext';
+import { saveMoodboard } from './utils/storage';
+import { toast } from 'react-hot-toast';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const [showMoodboard, setShowMoodboard] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [finalPrompt, setFinalPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentFilters, setCurrentFilters] = useState({
+    colorTheme: 'all',
+    vibe: 0.5,
+    layout: 'messy'
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleGenerateMoodboard = async (prompt: string) => {
+    setFinalPrompt(prompt);
+    setIsGenerating(true);
+    try {
+      // Generate multiple images sequentially
+      const generatedImages: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const image = await generateImages(prompt);
+        generatedImages.push(...image);
+      }
+      setImages(generatedImages);
+      setShowMoodboard(true);
+    } catch (error) {
+      console.error('Error generating images:', error);
+      toast.error('Failed to generate images. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRegenerate = async (filters: any) => {
+    setIsGenerating(true);
+    setCurrentFilters(filters);
+    try {
+      // Regenerate multiple images sequentially
+      const regeneratedImages: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const image = await regenerateImages(finalPrompt, filters);
+        regeneratedImages.push(...image);
+      }
+      setImages(regeneratedImages);
+    } catch (error) {
+      console.error('Error regenerating images:', error);
+      toast.error('Failed to regenerate images. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) {
+      toast.error('Please sign in to save your moodboard');
+      return;
+    }
+
+    try {
+      await saveMoodboard(user.uid, {
+        images,
+        prompt: finalPrompt,
+        filters: currentFilters,
+        timestamp: Date.now()
+      });
+      toast.success('Moodboard saved successfully!');
+    } catch (error) {
+      console.error('Error saving moodboard:', error);
+      toast.error('Failed to save moodboard. Please try again.');
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex space-x-2">
+          <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" />
+          <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce delay-100" />
+          <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce delay-200" />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-4xl font-bold text-gray-800"
+          >
+            Moodboard Generator
+          </motion.h1>
+          {user ? (
+            <div className="flex items-center gap-4">
+              <span className="text-gray-600">Welcome, {user.displayName}</span>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Save Moodboard
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={signInWithGoogle}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Sign in with Google
+            </button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {!showMoodboard ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <Chatbot onGenerate={handleGenerateMoodboard} />
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <Moodboard
+                images={images}
+                onRegenerate={handleRegenerate}
+                isGenerating={isGenerating}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </main>
   );
 }
