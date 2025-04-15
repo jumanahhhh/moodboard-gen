@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import { motion } from "framer-motion"
-import { Download, Share2, Heart } from "lucide-react"
+import { Download, Share2, Heart, Loader2 } from "lucide-react"
 import Image from "next/image"
 
 interface Palette {
@@ -14,15 +14,107 @@ interface Palette {
   fonts: string[]
 }
 
+async function generateImages(prompt: string) {
+  try {
+    // First, join the queue
+    const session_hash = Math.random().toString(36).substring(7)
+    const queueResponse = await fetch(`https://37b2e326a265ff3621.gradio.live/gradio_api/queue/join?`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fn_index: 0,
+        session_hash: session_hash,
+        data: [prompt]
+      }),
+    })
+
+    if (!queueResponse.ok) {
+      throw new Error(`Queue join error! status: ${queueResponse.status}`)
+    }
+
+    const queueData = await queueResponse.json()
+    console.log("Queue Response:", queueData)
+
+    // Then get the result using EventSource for SSE
+    return new Promise<{ images: string[], palette: Palette }>((resolve, reject) => {
+      const eventSource = new EventSource(`https://37b2e326a265ff3621.gradio.live/gradio_api/queue/data?session_hash=${session_hash}`)
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log("SSE Data:", data)
+          
+          if (data.msg === "process_completed") {
+            eventSource.close()
+            if (data.output && data.output.data) {
+              // Extract images (first 4 items)
+              const imageUrls = data.output.data
+                .slice(0, 4)
+                .map((item: any) => item.url)
+                .filter(Boolean)
+
+              // Extract color palette (items 4-7)
+              const colorPalettes = data.output.data.slice(4, 8)
+              const colors = colorPalettes[0] // Use the first color palette
+                .split('\n')
+                .map((line: string) => {
+                  const match = line.match(/#[0-9a-fA-F]{6}/)
+                  return match ? match[0] : null
+                })
+                .filter(Boolean)
+
+              // Extract fonts (item 8)
+              const fontsHtml = data.output.data[8]
+              const fontMatches = fontsHtml.match(/font-family:'([^']+)'/g)
+              const fonts = fontMatches 
+                ? fontMatches.map((match: string) => match.replace(/font-family:'([^']+)'/, '$1'))
+                : []
+
+              const palette: Palette = {
+                base_color: colors[0] || '#000000',
+                color_palette: colors,
+                fonts: fonts
+              }
+
+              console.log("Extracted data:", { imageUrls, palette })
+              resolve({ images: imageUrls, palette })
+            } else {
+              resolve({ images: [], palette: { base_color: '#000000', color_palette: [], fonts: [] } })
+            }
+          }
+        } catch (error) {
+          console.error("Error parsing SSE data:", error)
+          eventSource.close()
+          resolve({ images: [], palette: { base_color: '#000000', color_palette: [], fonts: [] } })
+        }
+      }
+
+      eventSource.onerror = (error) => {
+        console.error("SSE Error:", error)
+        eventSource.close()
+        resolve({ images: [], palette: { base_color: '#000000', color_palette: [], fonts: [] } })
+      }
+    })
+  } catch (error) {
+    console.error("Error generating images:", error)
+    return { images: [], palette: { base_color: '#000000', color_palette: [], fonts: [] } }
+  }
+}
+
 export default function MoodboardPage() {
   const searchParams = useSearchParams()
   const [prompt, setPrompt] = useState<string>("")
   const [palette, setPalette] = useState<Palette | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [generatedImages, setGeneratedImages] = useState<string[]>([])
 
   useEffect(() => {
-    const promptParam = searchParams.get("prompt")
-    const paletteParam = searchParams.get("palette")
+    const urlParams = new URLSearchParams(window.location.search)
+    const promptParam = urlParams.get("prompt")
+    const paletteParam = urlParams.get("palette")
 
     if (promptParam) {
       setPrompt(promptParam)
@@ -30,20 +122,38 @@ export default function MoodboardPage() {
 
     if (paletteParam) {
       try {
-        const parsedPalette = JSON.parse(paletteParam)
-        setPalette(parsedPalette)
-      } catch (error) {
-        console.error("Error parsing palette:", error)
+        setPalette(JSON.parse(paletteParam))
+      } catch (e) {
+        console.error("Error parsing palette:", e)
       }
     }
+  }, [])
 
-    // Simulate loading of generated images
-    const timer = setTimeout(() => {
-      setLoading(false)
-    }, 2000)
+  useEffect(() => {
+    if (prompt) {
+      const generateAndSetImages = async () => {
+        try {
+          setIsLoading(true)
+          setError(null)
+          const { images, palette: newPalette } = await generateImages(prompt)
+          console.log("Generated data:", { images, newPalette })
+          if (images.length > 0) {
+            setGeneratedImages(images)
+            setPalette(newPalette)
+          } else {
+            setError("No images were generated. Please try again.")
+          }
+        } catch (err) {
+          console.error("Error in image generation:", err)
+          setError("Failed to generate images. Please try again later.")
+        } finally {
+          setIsLoading(false)
+        }
+      }
 
-    return () => clearTimeout(timer)
-  }, [searchParams])
+      generateAndSetImages()
+    }
+  }, [prompt])
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-mesh">
@@ -282,84 +392,62 @@ export default function MoodboardPage() {
             >
               <h3 className="text-xl font-serif font-semibold text-white mb-6">Generated Imagery</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {loading ? (
-                  <>
-                    <div className="aspect-[4/3] bg-gray-700 dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-600/50 dark:border-gray-600/50">
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    </div>
-                    <div className="aspect-[4/3] bg-gray-700 dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-600/50 dark:border-gray-600/50">
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
+              {isLoading ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center h-64"
+                >
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+                  <p className="mt-4 text-gray-400">Generating your mood board...</p>
+                </motion.div>
+              ) : error ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-8"
+                >
+                  <p className="text-red-400">{error}</p>
+                </motion.div>
+              ) : generatedImages.length > 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                >
+                  {generatedImages.map((imageUrl, index) => (
                     <motion.div
+                      key={index}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.6, duration: 0.5 }}
-                      whileHover={{ y: -10, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)" }}
-                      className="aspect-[4/3] bg-gray-700 dark:bg-gray-700 rounded-lg overflow-hidden shadow-md group relative border border-gray-600/50 dark:border-gray-600/50"
+                      transition={{ delay: index * 0.1 }}
+                      className="relative group"
                     >
-                      <Image
-                        src="/placeholder.svg?height=600&width=800"
-                        alt="Generated image 1"
-                        width={800}
-                        height={600}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
+                      <img
+                        src={imageUrl}
+                        alt={`Generated image ${index + 1}`}
+                        className="w-full h-64 object-cover rounded-lg shadow-lg"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-                        <div className="p-4 w-full">
-                          <div className="flex justify-between items-center">
-                            <span className="text-white text-sm">Image 1</span>
-                            <motion.button
-                              whileHover={{ scale: 1.2, backgroundColor: "rgba(255, 255, 255, 0.3)" }}
-                              whileTap={{ scale: 0.9 }}
-                              className="p-2 bg-white/20 rounded-full backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
-                            >
-                              <Download size={16} />
-                            </motion.button>
-                          </div>
-                        </div>
-                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => window.open(imageUrl, "_blank")}
+                        className="absolute bottom-4 right-4 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Download size={20} />
+                      </motion.button>
                     </motion.div>
-
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.7, duration: 0.5 }}
-                      whileHover={{ y: -10, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)" }}
-                      className="aspect-[4/3] bg-gray-700 dark:bg-gray-700 rounded-lg overflow-hidden shadow-md group relative border border-gray-600/50 dark:border-gray-600/50"
-                    >
-                      <Image
-                        src="/placeholder.svg?height=600&width=800"
-                        alt="Generated image 2"
-                        width={800}
-                        height={600}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-                        <div className="p-4 w-full">
-                          <div className="flex justify-between items-center">
-                            <span className="text-white text-sm">Image 2</span>
-                            <motion.button
-                              whileHover={{ scale: 1.2, backgroundColor: "rgba(255, 255, 255, 0.3)" }}
-                              whileTap={{ scale: 0.9 }}
-                              className="p-2 bg-white/20 rounded-full backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
-                            >
-                              <Download size={16} />
-                            </motion.button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </div>
+                  ))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center text-gray-400"
+                >
+                  <p>No images generated yet. Please try again.</p>
+                </motion.div>
+              )}
             </motion.div>
           </div>
 

@@ -18,6 +18,7 @@ interface Message {
     color_palette: string[]
     fonts: string[]
   }
+  isButton?: boolean
 }
 
 interface ChatbotProps {
@@ -133,24 +134,49 @@ export default function Chatbot({ onGenerate }: ChatbotProps) {
 
         setGeneratedPrompt(generatedPrompt)
 
-        // Generate color palette and fonts
-        const palette = await generatePalette(keywords.join(" "))
+        try {
+          // Generate color palette and fonts
+          const palette = await generatePalette(keywords.join(" "))
 
-        // Add typing animation for final response
-        setIsTyping(true)
-        setTimeout(() => {
+          // Add typing animation for final response
+          setIsTyping(true)
+          setTimeout(() => {
+            // First message with palette
+            const assistantMessage: Message = {
+              role: "assistant",
+              content: `Perfect! Based on your vision, I've crafted a unique mood board concept. I've generated a color palette and font suggestions that capture the essence of your ideas.`,
+              palette,
+            }
+            setMessages((prev) => [...prev, assistantMessage])
+
+            // Second message with button
+            const buttonMessage: Message = {
+              role: "assistant",
+              content: "View your complete mood board with colors, fonts, and generated images!",
+              palette,
+              isButton: true,
+            }
+            setMessages((prev) => [...prev, buttonMessage])
+
+            // Store the final prompt for generation
+            onGenerate(generatedPrompt)
+            setIsTyping(false)
+            setIsLoading(false)
+          }, 1500)
+        } catch (paletteError) {
+          console.error("Error generating palette:", paletteError)
+          // Continue without palette if it fails
           const assistantMessage: Message = {
             role: "assistant",
-            content: `Perfect! Based on your vision, I've crafted a unique mood board concept. I've generated a color palette and font suggestions that capture the essence of your ideas.`,
-            palette,
+            content: `Perfect! Based on your vision, I've crafted a unique mood board concept. While I couldn't generate a color palette, you can still view your mood board with the generated images.`,
           }
           setMessages((prev) => [...prev, assistantMessage])
 
-          // Add a button to view the moodboard
+          // Add a button to view the moodboard without palette
           const buttonMessage: Message = {
             role: "assistant",
-            content: "View your complete mood board with colors, fonts, and generated images!",
-            palette,
+            content: "View your mood board with the generated images!",
+            isButton: true,
           }
           setMessages((prev) => [...prev, buttonMessage])
 
@@ -158,17 +184,15 @@ export default function Chatbot({ onGenerate }: ChatbotProps) {
           onGenerate(generatedPrompt)
           setIsTyping(false)
           setIsLoading(false)
-        }, 1500)
+        }
       }
     } catch (error) {
       console.error("Error in handleSubmit:", error)
-      // Add more detailed error message
       setIsTyping(true)
       setTimeout(() => {
         const errorMessage: Message = {
           role: "assistant",
-          content:
-            "I apologize, but I encountered an error while processing your response. This might be due to the API being temporarily unavailable. Please try again in a moment.",
+          content: "I apologize, but I encountered an error while processing your response. This might be due to the API being temporarily unavailable. Please try again in a moment.",
         }
         setMessages((prev) => [...prev, errorMessage])
         setIsTyping(false)
@@ -269,7 +293,26 @@ export default function Chatbot({ onGenerate }: ChatbotProps) {
                   >
                     <div className="prose prose-sm dark:prose-invert">{message.content}</div>
 
-                    {message.palette && (
+                    {message.isButton ? (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        whileHover={{ scale: 1.05, boxShadow: "0 0 15px rgba(16, 185, 129, 0.5)" }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          const queryParams = new URLSearchParams({
+                            prompt: generatedPrompt,
+                            palette: message.palette ? JSON.stringify(message.palette) : "",
+                          })
+                          router.push(`/moodboard?${queryParams.toString()}`)
+                        }}
+                        className="mt-4 px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-lg transition-all shadow-lg flex items-center space-x-2 w-full justify-center"
+                      >
+                        <span>View Complete Mood Board</span>
+                        <ChevronRight size={16} />
+                      </motion.button>
+                    ) : message.palette && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
@@ -302,26 +345,6 @@ export default function Chatbot({ onGenerate }: ChatbotProps) {
                             </motion.div>
                           ))}
                         </div>
-                        {index === messages.length - 1 && (
-                          <motion.button
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.6 }}
-                            whileHover={{ scale: 1.05, boxShadow: "0 0 15px rgba(16, 185, 129, 0.5)" }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => {
-                              const queryParams = new URLSearchParams({
-                                prompt: generatedPrompt,
-                                palette: JSON.stringify(message.palette),
-                              })
-                              router.push(`/moodboard?${queryParams.toString()}`)
-                            }}
-                            className="mt-4 px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-lg transition-all shadow-lg flex items-center space-x-2 w-full justify-center"
-                          >
-                            <span>View Complete Mood Board</span>
-                            <ChevronRight size={16} />
-                          </motion.button>
-                        )}
                       </motion.div>
                     )}
                   </motion.div>

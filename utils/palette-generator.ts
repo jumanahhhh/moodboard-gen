@@ -1,48 +1,63 @@
 // This is a simplified version of the palette generator
 // In a real application, this would likely call an API or use a more sophisticated algorithm
 
+// export async function generatePalette(prompt: string) {
+//   // Simulate API call delay
+//   await new Promise((resolve) => setTimeout(resolve, 1000))
+
+//   // Generate a base color based on the prompt
+//   const baseColors: Record<string, string> = {
+//     calm: "#a8d5e2",
+//     serene: "#d5e2a8",
+//     bold: "#e2a8d5",
+//     energetic: "#e2d5a8",
+//     minimalist: "#e8e8e8",
+//     clean: "#ffffff",
+//     warm: "#e2a8a8",
+//     cozy: "#d5a8e2",
+//     earth: "#a8e2a8",
+//     pastel: "#f0d0e0",
+//     vibrant: "#a8a8e2",
+//     modern: "#a8e2d5",
+//     vintage: "#e2c0a8",
+//     natural: "#c0e2a8",
+//   }
+
+//   // Find a matching base color or use a default
+//   let baseColor = "#a8d5e2" // Default calm blue
+
+//   for (const [key, color] of Object.entries(baseColors)) {
+//     if (prompt.toLowerCase().includes(key)) {
+//       baseColor = color
+//       break
+//     }
+//   }
+
+//   // Generate a palette from the base color
+//   const palette = generateComplementaryPalette(baseColor)
+
+//   // Select fonts based on the prompt
+//   const fonts = selectFonts(prompt)
+
+//   return {
+//     base_color: baseColor,
+//     color_palette: palette,
+//     fonts,
+//   }
+// }
 export async function generatePalette(prompt: string) {
-  // Simulate API call delay
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  const response = await fetch("/api/palette", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  })
 
-  // Generate a base color based on the prompt
-  const baseColors: Record<string, string> = {
-    calm: "#a8d5e2",
-    serene: "#d5e2a8",
-    bold: "#e2a8d5",
-    energetic: "#e2d5a8",
-    minimalist: "#e8e8e8",
-    clean: "#ffffff",
-    warm: "#e2a8a8",
-    cozy: "#d5a8e2",
-    earth: "#a8e2a8",
-    pastel: "#f0d0e0",
-    vibrant: "#a8a8e2",
-    modern: "#a8e2d5",
-    vintage: "#e2c0a8",
-    natural: "#c0e2a8",
-  }
-
-  // Find a matching base color or use a default
-  let baseColor = "#a8d5e2" // Default calm blue
-
-  for (const [key, color] of Object.entries(baseColors)) {
-    if (prompt.toLowerCase().includes(key)) {
-      baseColor = color
-      break
-    }
-  }
-
-  // Generate a palette from the base color
-  const palette = generateComplementaryPalette(baseColor)
-
-  // Select fonts based on the prompt
-  const fonts = selectFonts(prompt)
+  const data = await response.json()
 
   return {
-    base_color: baseColor,
-    color_palette: palette,
-    fonts,
+    base_color: data.color_palette[0],
+    color_palette: data.color_palette,
+    fonts: data.fonts,
   }
 }
 
